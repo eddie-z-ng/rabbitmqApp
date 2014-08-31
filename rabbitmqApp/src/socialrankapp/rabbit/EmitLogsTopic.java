@@ -1,5 +1,7 @@
 package socialrankapp.rabbit;
 
+import java.util.Map;
+
 import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.Connection;
 import com.rabbitmq.client.ConnectionFactory;
@@ -14,7 +16,7 @@ public class EmitLogsTopic {
 	try {
 	    String uri = System.getenv("CLOUDAMQP_URL");
 	    if (uri == null) {
-		uri = "amqp://kpuecxfp:jHNzbA3XYB8VeKLdMpXpbVjAerwFQ6so@lemur.cloudamqp.com/kpuecxfp";
+		throw new Exception("No CLOUDAMQP_URL specified");
 	    }
 	    ConnectionFactory factory = new ConnectionFactory();
 	    factory.setUri(uri);

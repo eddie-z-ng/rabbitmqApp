@@ -1,5 +1,10 @@
 package socialrankapp.rabbit;
 
+import twitter4j.ResponseList;
+import twitter4j.Status;
+import twitter4j.Twitter;
+import twitter4j.TwitterException;
+
 import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.Connection;
 import com.rabbitmq.client.ConnectionFactory;
@@ -8,6 +13,13 @@ import com.rabbitmq.client.QueueingConsumer;
 public class ReceiveLogsTopic {
 
     private static final String EXCHANGE_NAME = "sr_twitter_scrape";
+    // remove messages only when fully processed
+    private static final boolean NO_ACK = false;
+
+    // partially prevent data loss on rabbitmq restart
+    // private static final boolean DURABLE = true;
+
+    private static Twitter twitterInstance;
 
     public static void main(String[] argv) {
 	Connection connection = null;
@@ -15,7 +27,7 @@ public class ReceiveLogsTopic {
 	try {
 	    String uri = System.getenv("CLOUDAMQP_URL");
 	    if (uri == null) {
-		uri = "amqp://kpuecxfp:jHNzbA3XYB8VeKLdMpXpbVjAerwFQ6so@lemur.cloudamqp.com/kpuecxfp";
+		throw new Exception("No CLOUDAMQP_URL specified");
 	    }
 	    ConnectionFactory factory = new ConnectionFactory();
 	    factory.setUri(uri);
@@ -38,7 +50,9 @@ public class ReceiveLogsTopic {
 		    .println(" [*] Waiting for messages. To exit press CTRL+C");
 
 	    QueueingConsumer consumer = new QueueingConsumer(channel);
-	    channel.basicConsume(queueName, true, consumer);
+	    channel.basicConsume(queueName, NO_ACK, consumer);
+
+	    twitterInstance = TwitterAPIRequester.getTwitter();
 
 	    while (true) {
 		QueueingConsumer.Delivery delivery = consumer.nextDelivery();
@@ -66,7 +80,21 @@ public class ReceiveLogsTopic {
 	String[] parts = message.split(" ");
 	if (parts.length > 0 && parts[0].equals("twitterid")) {
 	    String twitterid = parts[1];
+	    long userId = Long.parseLong(twitterid);
 	    System.out.println("Twitter ID received is: " + twitterid);
+	    try {
+		ResponseList<Status> tweets = twitterInstance
+			.getUserTimeline(userId);
+		for (Status tweet : tweets) {
+		    System.out.println("@" + tweet.getUser().getScreenName()
+			    + " - " + tweet.getText());
+		}
+	    } catch (TwitterException te) {
+		te.printStackTrace();
+		System.out.println("Failed to search tweets for the given ID: "
+			+ userId);
+	    }
+
 	}
     }
 }
