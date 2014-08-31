@@ -1,9 +1,12 @@
 package socialrankapp.rabbit;
 
+import twitter4j.JSONException;
+import twitter4j.JSONObject;
 import twitter4j.ResponseList;
 import twitter4j.Status;
 import twitter4j.Twitter;
 import twitter4j.TwitterException;
+import twitter4j.json.DataObjectFactory;
 
 import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.Connection;
@@ -13,13 +16,15 @@ import com.rabbitmq.client.QueueingConsumer;
 public class ReceiveLogsTopic {
 
     private static final String EXCHANGE_NAME = "sr_twitter_scrape";
+    private static final String ES_TYPE = "tweet";
+    
     // remove messages only when fully processed
     private static final boolean NO_ACK = false;
 
     // partially prevent data loss on rabbitmq restart
     // private static final boolean DURABLE = true;
 
-    private static Twitter twitterInstance;
+    private static Twitter twitterInstance = TwitterAPIRequester.getTwitter();
 
     public static void main(String[] argv) {
 	Connection connection = null;
@@ -51,8 +56,6 @@ public class ReceiveLogsTopic {
 	    QueueingConsumer consumer = new QueueingConsumer(channel);
 	    channel.basicConsume(queueName, NO_ACK, consumer);
 
-	    twitterInstance = TwitterAPIRequester.getTwitter();
-
 	    while (true) {
 		QueueingConsumer.Delivery delivery = consumer.nextDelivery();
 		String message = new String(delivery.getBody());
@@ -75,25 +78,39 @@ public class ReceiveLogsTopic {
 	}
     }
 
-    public static void processMessage(String message) {
+    public static void processMessage(String message) throws JSONException {
 	String[] parts = message.split(" ");
 	if (parts.length > 0 && parts[0].equals("twitterid")) {
 	    String twitterid = parts[1];
 	    long userId = Long.parseLong(twitterid);
-	    try {
-		ResponseList<Status> tweets = twitterInstance
-			.getUserTimeline(userId);
-		for (Status tweet : tweets) {
-		    // String json = DataObjectFactory.getRawJSON(tweet);
-		    // System.out.println(json);
-		    System.out.println("@" + tweet.getUser().getScreenName()
-			    + " - " + tweet.getText());
-		}
-	    } catch (TwitterException te) {
-		te.printStackTrace();
-		System.out.println("Failed to search tweets for the given ID: "
-			+ userId);
-	    }
+	    
+	    JSONObject jsonObj = new JSONObject();
+	    jsonObj.put("Username", "Fat Billy"); 
+	    
+	    String json = jsonObj.toString();
+	    
+	    ESAPI.postToIndex("test_index", "test_type", "", json);
+//	    ElasticSearchAPI.postElasticSearch("test", "test", "test", "test");
+	    
+//	    try {
+//		ResponseList<Status> tweets = twitterInstance
+//			.getUserTimeline(userId);
+//		String userIdString = String.valueOf(userId);
+//		for (Status tweet : tweets) {
+//		    String json = DataObjectFactory.getRawJSON(tweet);
+////		    ElasticSearchAPI.postElasticSearch(userIdString, json, ES_INDEX, ES_TYPE);
+////		    System.out.println(json);
+//		    		    
+//
+//		    
+////		    System.out.println("@" + tweet.getUser().getScreenName()
+////			    + " - " + tweet.getText());
+//		}
+//	    } catch (TwitterException te) {
+//		te.printStackTrace();
+//		System.out.println("Failed to search tweets for the given ID: "
+//			+ userId);
+//	    }
 
 	}
     }

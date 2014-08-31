@@ -27,7 +27,7 @@ public class TwitterAPIRequester {
 		.setOAuthAccessTokenSecret(TWITTER_ACCESS_TOKEN_SECRET);
 	
 	// To store JSON in memory
-//	cb.setJSONStoreEnabled(true);
+	cb.setJSONStoreEnabled(true);
 	TwitterFactory tf = new TwitterFactory(cb.build());
 	Twitter twitterInstance = tf.getInstance();
 	return twitterInstance;
