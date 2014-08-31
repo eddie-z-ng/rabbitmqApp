@@ -46,8 +46,7 @@ public class ReceiveLogsTopic {
 		channel.queueBind(queueName, EXCHANGE_NAME, bindingKey);
 	    }
 
-	    System.out
-		    .println(" [*] Waiting for messages. To exit press CTRL+C");
+	    System.out.println(" [*] Waiting for messages. To exit press CTRL+C");
 
 	    QueueingConsumer consumer = new QueueingConsumer(channel);
 	    channel.basicConsume(queueName, NO_ACK, consumer);
@@ -81,11 +80,12 @@ public class ReceiveLogsTopic {
 	if (parts.length > 0 && parts[0].equals("twitterid")) {
 	    String twitterid = parts[1];
 	    long userId = Long.parseLong(twitterid);
-	    System.out.println("Twitter ID received is: " + twitterid);
 	    try {
 		ResponseList<Status> tweets = twitterInstance
 			.getUserTimeline(userId);
 		for (Status tweet : tweets) {
+		    // String json = DataObjectFactory.getRawJSON(tweet);
+		    // System.out.println(json);
 		    System.out.println("@" + tweet.getUser().getScreenName()
 			    + " - " + tweet.getText());
 		}
