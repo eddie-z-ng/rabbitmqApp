@@ -13,8 +13,15 @@ public class ESAPI {
 	    + HOST;
 
     public static String constructTargetURL(String index, String type, String id) {
+	String tmpPath = constructTargetPath(index, type, id);
 	StringBuilder tmpURL = new StringBuilder();
 	tmpURL.append(BASE_URL);
+	tmpURL.append(tmpPath);
+	return tmpURL.toString();
+    }
+    
+    public static String constructTargetPath(String index, String type, String id) {
+	StringBuilder tmpURL = new StringBuilder();
 	tmpURL.append('/');
 	tmpURL.append(index);
 	tmpURL.append('/');
@@ -34,7 +41,10 @@ public class ESAPI {
 
 	try {
 	    HttpPost request = new HttpPost(targetURL);
-	    StringEntity params = new StringEntity(json);
+	    
+	    // Important -- Set expected encoding type
+	    StringEntity params = new StringEntity(json, "UTF-8");
+	    
 	    request.addHeader("content-type",
 		    "application/x-www-form-urlencoded");
 	    request.setEntity(params);
@@ -42,15 +52,16 @@ public class ESAPI {
 	    
 //	    System.out.println("Request URL: " + targetURL);
 //	    System.out.println("POST Data: " + params);
-	    System.out.println("Request Status: " + targetURL + " " + response.getStatusLine().toString());
+//	    System.out.println("Request Status: " + targetURL + " " + response.getStatusLine().toString());
 
+	    if (response.getStatusLine().getStatusCode() >= 400) {
+		System.out.println("\tBAD REQUEST: " + targetURL + json);
+	    } else {
+		System.out.println("\tSUCCESS");
+	    }
+	    
 	} catch (Exception ex) {
 	    ex.printStackTrace();
 	} 
     }
 }
-
-// curl -XPOST
-// 'https://Qbb0ptd0HUmBETHOc4SdwQzuQhRZjl0q:@srtweet.east-us.azr.facetflow.io/second_index/posts'
-// -d '{ "user": "FOOD", "post_date": "2014-08-31T21:21:08.920Z", "message":
-// "PLEASE WORK"}'
