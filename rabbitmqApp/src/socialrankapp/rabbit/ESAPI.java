@@ -7,20 +7,27 @@ import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
 
 public class ESAPI {
-    private static final String API_KEY = "Qbb0ptd0HUmBETHOc4SdwQzuQhRZjl0q";
-    private static final String HOST = "srtweet.east-us.azr.facetflow.io";
-    private static final String BASE_URL = "https://" + API_KEY + ":@"
-	    + HOST;
+    private static final String FACETFLOW_API_KEY = System
+	    .getenv("FACETFLOW_API_KEY");
+    private static final String FACETFLOW_HOST = System
+	    .getenv("FACETFLOW_HOST");
+    private static final String FACETFLOW_BASE_URL = "https://"
+	    + FACETFLOW_API_KEY + ":@" + FACETFLOW_HOST;
 
-    public static String constructTargetURL(String index, String type, String id) {
+    public static String constructTargetURL(String index, String type, String id) throws Exception {
+	if (FACETFLOW_API_KEY == null || FACETFLOW_HOST == null) {
+	    throw new Exception("No FACETFLOW_API_KEY or FACETFLOW_HOST set");
+	}
+	
 	String tmpPath = constructTargetPath(index, type, id);
 	StringBuilder tmpURL = new StringBuilder();
-	tmpURL.append(BASE_URL);
+	tmpURL.append(FACETFLOW_BASE_URL);
 	tmpURL.append(tmpPath);
 	return tmpURL.toString();
     }
-    
-    public static String constructTargetPath(String index, String type, String id) {
+
+    public static String constructTargetPath(String index, String type,
+	    String id) {
 	StringBuilder tmpURL = new StringBuilder();
 	tmpURL.append('/');
 	tmpURL.append(index);
@@ -33,35 +40,36 @@ public class ESAPI {
 
     public static void postToIndex(String index, String type, String id,
 	    String json) {
-	String targetURL = constructTargetURL(index, type, id);
 
-	CloseableHttpClient httpClient = HttpClientBuilder
-                .create()
-                .build();
+	CloseableHttpClient httpClient = HttpClientBuilder.create().build();
 
 	try {
+	    String targetURL = constructTargetURL(index, type, id);
 	    HttpPost request = new HttpPost(targetURL);
-	    
+
 	    // Important -- Set expected encoding type
 	    StringEntity params = new StringEntity(json, "UTF-8");
-	    
+
 	    request.addHeader("content-type",
 		    "application/x-www-form-urlencoded");
 	    request.setEntity(params);
 	    CloseableHttpResponse response = httpClient.execute(request);
-	    
-//	    System.out.println("Request URL: " + targetURL);
-//	    System.out.println("POST Data: " + params);
-//	    System.out.println("Request Status: " + targetURL + " " + response.getStatusLine().toString());
+
+	    // System.out.println("Request URL: " + targetURL);
+	    // System.out.println("POST Data: " + params);
+	    // System.out.println("Request Status: " + targetURL + " " +
+	    // response.getStatusLine().toString());
 
 	    if (response.getStatusLine().getStatusCode() >= 400) {
-		System.out.println("\tBAD REQUEST: " + targetURL + json);
+		System.out.println("\t" + response.getStatusLine().toString() + "\n" + json);
 	    } else {
-		System.out.println("\tSUCCESS");
+		System.out.println("\t" + response.getStatusLine().toString());
 	    }
-	    
+
 	} catch (Exception ex) {
+	    System.err.println("Failed to post to ElasticSearch instance: "
+		    + ex.getMessage());
 	    ex.printStackTrace();
-	} 
+	}
     }
 }

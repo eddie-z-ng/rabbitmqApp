@@ -6,7 +6,11 @@ import com.rabbitmq.client.ConnectionFactory;
 
 public class EmitLogsTopic {
 
-    private static final String EXCHANGE_NAME = "sr_twitter_scrape";
+    // Used for exchange-topic mode
+    private static final String EXCHANGE_NAME = "sr_twitter_exchange";
+
+    // partially prevent data loss on rabbitMQ restart
+    private static final boolean DURABLE = true;
 
     public static void main(String[] argv) {
 	Connection connection = null;
@@ -21,19 +25,52 @@ public class EmitLogsTopic {
 	    connection = factory.newConnection();
 	    channel = connection.createChannel();
 
-	    channel.exchangeDeclare(EXCHANGE_NAME, "topic");
+	    String mode = null;
+	    String modeKey = null;
+	    String message = null;
 
-	    String routingKey = getRouting(argv);
-	    String message = getMessage(argv);
+	    if (argv.length < 3) {
+		printUsageError();
+		System.exit(1);
+	    } else {
+		mode = argv[0];
+		modeKey = getRoutingKeyOrQueueName(argv);
+		message = getMessage(argv);
 
-	    channel.basicPublish(EXCHANGE_NAME, routingKey, null,
-		    message.getBytes());
-	    System.out.println(" [x] Sent '" + routingKey + "':'" + message
+		if (mode.equalsIgnoreCase("TOPIC")) {
+
+		    String routingKey = modeKey;
+		    channel.exchangeDeclare(EXCHANGE_NAME, "topic");
+
+		    channel.basicPublish(EXCHANGE_NAME, routingKey, null,
+			    message.getBytes());
+
+		} else if (mode.equalsIgnoreCase("QUEUE")) {
+
+		    String queueName = modeKey;
+		    channel.queueDeclare(queueName, DURABLE, false, false, null);
+
+		    channel.basicPublish("", queueName, null,
+			    message.getBytes());
+
+		} else {
+		    printUsageError();
+		    System.exit(1);
+		}
+	    }
+
+	    System.out.println(" [x] Sent via '" + modeKey + "':'" + message
 		    + "'");
 
 	} catch (Exception e) {
 	    e.printStackTrace();
 	} finally {
+	    if (channel != null) {
+		try {
+		    channel.close();
+		} catch (Exception ignore) {
+		}
+	    }
 	    if (connection != null) {
 		try {
 		    connection.close();
@@ -43,16 +80,25 @@ public class EmitLogsTopic {
 	}
     }
 
-    private static String getRouting(String[] strings) {
-	if (strings.length < 1)
+    private static void printUsageError() {
+	System.err
+		.println("Usage: EmitLogsTopic [mode] [routingKey|queueName] [message]");
+	System.err
+		.println("\t 'topic' mode: EmitsLogsTopic topic srank.gettimeline twitterid 1730282898");
+	System.err
+		.println("\t 'queue' mode: EmitsLogTopic queue srank.queue twitterid 1730282898");
+    }
+
+    private static String getRoutingKeyOrQueueName(String[] strings) {
+	if (strings.length < 3)
 	    return "anonymous.info";
-	return strings[0];
+	return strings[1];
     }
 
     private static String getMessage(String[] strings) {
-	if (strings.length < 2)
+	if (strings.length < 3)
 	    return "Hello World!";
-	return joinStrings(strings, " ", 1);
+	return joinStrings(strings, " ", 2);
     }
 
     private static String joinStrings(String[] strings, String delimiter,

@@ -1,5 +1,7 @@
 package socialrankapp.rabbit;
 
+import java.util.Date;
+
 import twitter4j.JSONException;
 import twitter4j.ResponseList;
 import twitter4j.Status;
@@ -14,16 +16,18 @@ import com.rabbitmq.client.QueueingConsumer;
 
 public class ReceiveLogsTopic {
 
-    private static final String EXCHANGE_NAME = "sr_twitter_scrape";
+    // Used for exchange-topic mode
+    private static final String EXCHANGE_NAME = "sr_twitter_exchange";
+
     private static final String ES_TYPE = "tweet";
 
     // remove messages only when fully processed
     private static final boolean NO_ACK = false;
 
     // partially prevent data loss on rabbitmq restart
-    // private static final boolean DURABLE = true;
+    private static final boolean DURABLE = true;
 
-    private static Twitter twitterInstance = TwitterAPIRequester.getTwitter();
+    private static Twitter twitterInstance;
 
     public static void main(String[] argv) {
 	Connection connection = null;
@@ -33,52 +37,91 @@ public class ReceiveLogsTopic {
 	    if (uri == null) {
 		throw new Exception("No CLOUDAMQP_URL specified");
 	    }
+	    
+	    twitterInstance = TwitterAPIRequester.getTwitter();
+	    
 	    ConnectionFactory factory = new ConnectionFactory();
 	    factory.setUri(uri);
 	    connection = factory.newConnection();
 	    channel = connection.createChannel();
+	    String queueName = null;
+	    QueueingConsumer consumer = null;
+	    String mode = null;
+	    String modeKey = null;
 
-	    channel.exchangeDeclare(EXCHANGE_NAME, "topic");
-	    String queueName = channel.queueDeclare().getQueue();
-
-	    if (argv.length < 1) {
-		System.err.println("Usage: ReceiveLogsTopic [binding_key]...");
+	    if (argv.length < 2) {
+		printUsageError();
 		System.exit(1);
+	    } else {
+		mode = argv[0];
+		modeKey = getBindingKeyOrQueueName(argv);
+
+		if (mode.equalsIgnoreCase("TOPIC")) {
+		    channel.exchangeDeclare(EXCHANGE_NAME, "topic");
+		    queueName = channel.queueDeclare().getQueue();
+
+		    String bindingKey = modeKey;
+		    channel.queueBind(queueName, EXCHANGE_NAME, bindingKey);
+
+		} else if (mode.equalsIgnoreCase("QUEUE")) {
+		    queueName = modeKey;
+		    channel.queueDeclare(queueName, DURABLE, false, false, null);
+
+		} else {
+		    printUsageError();
+		    System.exit(1);
+		}
 	    }
 
-	    for (String bindingKey : argv) {
-		channel.queueBind(queueName, EXCHANGE_NAME, bindingKey);
-	    }
+	    channel.basicQos(1);
+	    consumer = new QueueingConsumer(channel);
+	    channel.basicConsume(queueName, NO_ACK, consumer);
 
 	    System.out
-		    .println(" [*] Waiting for messages. To exit press CTRL+C");
-
-	    QueueingConsumer consumer = new QueueingConsumer(channel);
-	    channel.basicConsume(queueName, NO_ACK, consumer);
+		    .println(" [*] Waiting for messages. To exit press CTRL+C. MODE: "
+			    + mode + " KEY: " + modeKey);
 
 	    while (true) {
 		QueueingConsumer.Delivery delivery = consumer.nextDelivery();
 		String message = new String(delivery.getBody());
 		String routingKey = delivery.getEnvelope().getRoutingKey();
 
-		System.out.println(" [x] Received '" + routingKey + "':'"
-			+ message + "'");
+		System.out.println(new Date() + " [x] Received '" + routingKey
+			+ "':'" + message + "'");
 
 		processMessage(message);
+
+		channel.basicAck(delivery.getEnvelope().getDeliveryTag(), false);
 	    }
 	} catch (Exception e) {
 	    e.printStackTrace();
-	} finally {
-	    if (connection != null) {
-		try {
-		    connection.close();
-		} catch (Exception ignore) {
-		}
-	    }
 	}
+	// finally {
+	// if (connection != null) {
+	// try {
+	// connection.close();
+	// } catch (Exception ignore) {
+	// }
+	// }
+	// }
     }
 
-    public static void processMessage(String message) throws JSONException {
+    private static String getBindingKeyOrQueueName(String[] strings) {
+	if (strings.length < 2) {
+	    return "anonymous.info";
+	}
+	return strings[1];
+    }
+
+    private static void printUsageError() {
+	System.err
+		.println("Usage: ReceiveLogsTopic [mode] [bindingKey|queueName]");
+	System.err.println("\t 'topic' mode: ReceiveLogsTopic topic srank.#");
+	System.err
+		.println("\t 'queue' mode: ReceiveLogsTopic queue srank.queue");
+    }
+
+    private static void processMessage(String message) throws JSONException {
 	String[] parts = message.split(" ");
 	if (parts.length > 0 && parts[0].equals("twitterid")) {
 	    String twitterid = parts[1];
@@ -87,7 +130,7 @@ public class ReceiveLogsTopic {
 	    try {
 		ResponseList<Status> tweets = twitterInstance
 			.getUserTimeline(userId);
-		String userIdString = String.valueOf(userId);
+
 		for (Status tweet : tweets) {
 		    String json = TwitterObjectFactory.getRawJSON(tweet);
 
@@ -97,17 +140,16 @@ public class ReceiveLogsTopic {
 			    .toLowerCase();
 		    String es_type = ES_TYPE;
 		    String es_id = String.valueOf(tweet.getId());
-		    
-		    String es_path = ESAPI.constructTargetPath(es_index, es_type, es_id);
-		    System.out.println("Post to ES path: " + es_path);
-		    
+
+		    String es_path = ESAPI.constructTargetPath(es_index,
+			    es_type, es_id);
+		    System.out.println("\tPost to ES path: " + es_path);
+
 		    ESAPI.postToIndex(es_index, es_type, es_id, json);
 		}
-		
-		System.out.println("\t Tweets for " + twitterid + " saved to ES");
-		
+
 	    } catch (TwitterException te) {
-		System.err.print("Failed to search tweets for user ID: "
+		System.err.println("Failed to search tweets for user ID: "
 			+ userId + " " + te.getMessage());
 		te.printStackTrace();
 	    }
