@@ -37,9 +37,9 @@ public class ReceiveLogsTopic {
 	    if (uri == null) {
 		throw new Exception("No CLOUDAMQP_URL specified");
 	    }
-	    
+
 	    twitterInstance = TwitterAPIRequester.getTwitter();
-	    
+
 	    ConnectionFactory factory = new ConnectionFactory();
 	    factory.setUri(uri);
 	    connection = factory.newConnection();
@@ -121,13 +121,14 @@ public class ReceiveLogsTopic {
 		.println("\t 'queue' mode: ReceiveLogsTopic queue srank.queue");
     }
 
-    private static void processMessage(String message) throws JSONException {
+    private static void processMessage(String message) throws Exception {
 	String[] parts = message.split(" ");
-	if (parts.length > 0 && parts[0].equals("twitterid")) {
+	if (parts.length > 1 && parts[0].equals("twitterid")) {
 	    String twitterid = parts[1];
-	    long userId = Long.parseLong(twitterid);
-
+	    
 	    try {
+		long userId = Long.parseLong(twitterid);
+
 		ResponseList<Status> tweets = twitterInstance
 			.getUserTimeline(userId);
 
@@ -148,9 +149,9 @@ public class ReceiveLogsTopic {
 		    ESAPI.postToIndex(es_index, es_type, es_id, json);
 		}
 
-	    } catch (TwitterException te) {
+	    } catch (Exception te) {
 		System.err.println("Failed to search tweets for user ID: "
-			+ userId + " " + te.getMessage());
+			+ twitterid + " " + te.getMessage());
 		te.printStackTrace();
 	    }
 
