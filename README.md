@@ -71,7 +71,7 @@ Example:
 ```
 java -jar sRankRECV.jar topic srank.#
 ```
-Receives messages matching srank.<anything and more> and if the message is in the expected form then gets the id's latest tweets and indexes them in the ElasticSearch instance
+Receives messages matching srank._anythingAndMore_ and if the message is in the expected form then gets the id's latest tweets and indexes them in the ElasticSearch instance
 
 Other Documentation
 ---
